@@ -95,11 +95,10 @@ class SKFF(nn.Module):
         
         self.softmax = nn.Softmax(dim=1)
 
-    def forward(self, inp_feats):
+    def forward(self, inp_feats): # inp_feats: [1, 64, 442, 596] 인 torch type, len=3
         batch_size = inp_feats[0].shape[0]
         n_feats =  inp_feats[0].shape[1]
-        
-
+       
         inp_feats = torch.cat(inp_feats, dim=1)
         inp_feats = inp_feats.view(batch_size, self.height, n_feats, inp_feats.shape[2], inp_feats.shape[3])
         

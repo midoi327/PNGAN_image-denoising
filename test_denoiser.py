@@ -17,6 +17,9 @@ from dataloaders.data_rgb import get_validation_data_real
 import utils
 from skimage import img_as_ubyte
 
+import glob
+
+
 parser = argparse.ArgumentParser(description='noise_removal')
 
 ## --------------- input dir ----------------------------
@@ -75,6 +78,7 @@ os.environ["CUDA_VISIBLE_DEVICES"] = args.gpus
 
 utils.mkdir(args.result_dir)
 
+
 test_dataset = get_validation_data_real(args.input_dir)
 test_loader = DataLoader(dataset=test_dataset, batch_size=args.bs, shuffle=False, num_workers=12, drop_last=False)
 
@@ -98,6 +102,16 @@ model_restoration=nn.DataParallel(model_restoration)
 model_restoration.eval()
 
 
+
+
+
+niqe_test_before = 0 # 노이즈 제거 전 데이터셋 NIQE 평균 점수
+niqe_test_after = 0 # 노이즈 제거 후 데이터셋 NIQE 평균 점수
+    
+    
+    
+
+
 with torch.no_grad():
     psnr_val_rgb = []
     ssim_val_rgb = []
@@ -115,16 +129,34 @@ with torch.no_grad():
 
         rgb_gt = rgb_gt.permute(0, 2, 3, 1).cpu().detach().numpy()
         rgb_noisy = rgb_noisy.permute(0, 2, 3, 1).cpu().detach().numpy()
-        rgb_restored = rgb_restored.permute(0, 2, 3, 1).cpu().detach().numpy()
+        rgb_restored = rgb_restored.permute(0, 2, 3, 1).cpu().detach().numpy() # (1, 256, 256, 3)
         
-
+        rgb_gt_niqe = rgb_gt.squeeze(0)
+        rgb_gt_niqe = (rgb_gt_niqe[:,:,0]*255).astype(np.uint8)
+        rgb_noisy_niqe = rgb_noisy.squeeze(0)
+        rgb_noisy_niqe = (rgb_noisy_niqe[:,:,0]*255).astype(np.uint8)
+        rgb_restored_niqe = rgb_restored.squeeze(0) # (256, 256, 3)
+        rgb_restored_niqe = (rgb_restored_niqe[:,:,0]*255).astype(np.uint8) #(256, 256)이고 값이 0~255
+        
+        niqe_score_before = utils.niqe(rgb_noisy_niqe)
+        niqe_score_after = utils.niqe(rgb_restored_niqe)
+        niqe_test_before += niqe_score_before
+        niqe_test_after += niqe_score_after
+        
+        print(filenames, '원본 NIQE:', utils.niqe(rgb_gt_niqe))        
+        print(f'전 NIQE: {niqe_score_before: .3f}')
+        print(f'후 NIQE: {niqe_score_after: .3f}')
+        
         if args.save_images:
             for batch in range(len(rgb_gt)):
                 denoised_img = img_as_ubyte(rgb_restored[batch])
                 utils.save_img(args.result_dir + filenames[batch][:-4] + '.png', denoised_img)
+                
+                
             
-psnr_val_rgb = sum(psnr_val_rgb)/len(psnr_val_rgb)
-ssim_val_rgb = sum(ssim_val_rgb)/len(ssim_val_rgb)
-print("PSNR: %.2f " %(psnr_val_rgb))
-print("SSIM: %.3f " %(ssim_val_rgb))
-
+# psnr_val_rgb = sum(psnr_val_rgb)/len(psnr_val_rgb)
+# ssim_val_rgb = sum(ssim_val_rgb)/len(ssim_val_rgb)
+# print("PSNR: %.2f " %(psnr_val_rgb))
+# print("SSIM: %.3f " %(ssim_val_rgb))
+print('\n평균 노이즈 제거 전 NIQE 점수 %.3f' %niqe_test_before)
+print('평균 노이즈 제거 후 NIQE 점수 %.3f' %niqe_test_after)
